@@ -99,11 +99,16 @@ class Attention(tf.layers.Layer):
     Returns:
       Attention layer output with shape [batch_size, length_x, hidden_size]
     """
+    bias = tf.Print(bias, ["bias", tf.shape(bias)], summarize=100)
+
+    x = tf.Print(x, ["x", tf.shape(x)], summarize=100)
+
     # Linearly project the query (q), key (k) and value (v) using different
     # learned projections. This is in preparation of splitting them into
     # multiple heads. Multi-head attention uses multiple queries, keys, and
     # values rather than regular attention (which uses a single q, k, v).
     q = self.q_dense_layer(x)
+    q = tf.Print(q, ["q", tf.shape(q)], summarize=100)
     k = self.k_dense_layer(y)
     v = self.v_dense_layer(y)
 
@@ -118,8 +123,12 @@ class Attention(tf.layers.Layer):
 
     # Split q, k, v into heads.
     q = self.split_heads(q)
+    q = tf.Print(q, ["q_split_heads", tf.shape(q)], summarize=100)
     k = self.split_heads(k)
     v = self.split_heads(v)
+    v = tf.Print(v, ["v_split_heads", tf.shape(v)], summarize=100)
+
+    # q = tf.Print(q, [tf.shape(q)])
 
     # Scale q to prevent the dot product between q and k from growing too large.
     depth = (self.hidden_size // self.num_heads)
@@ -127,17 +136,22 @@ class Attention(tf.layers.Layer):
 
     # Calculate dot product attention
     logits = tf.matmul(q, k, transpose_b=True)
+    logits = tf.Print(logits, ["logits", tf.shape(logits)], summarize=100)
     logits += bias
+    # logits = tf.Print(logits, [tf.shape(logits)])
     weights = tf.nn.softmax(logits, name="attention_weights")
+    weights = tf.Print(weights, ["weights", tf.shape(weights)], summarize=100)
     if self.train:
       weights = tf.nn.dropout(weights, 1.0 - self.attention_dropout)
     attention_output = tf.matmul(weights, v)
 
     # Recombine heads --> [batch_size, length, hidden_size]
     attention_output = self.combine_heads(attention_output)
+    attention_output = tf.Print(attention_output, ["att_output", tf.shape(attention_output)])
 
     # Run the combined outputs through another linear projection layer.
     attention_output = self.output_dense_layer(attention_output)
+    attention_output = tf.Print(attention_output, ["att_output_dense", tf.shape(attention_output)])
     return attention_output
 
 

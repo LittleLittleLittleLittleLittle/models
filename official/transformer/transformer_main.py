@@ -88,6 +88,8 @@ def model_fn(features, labels, mode, params):
               "translate": tf.estimator.export.PredictOutput(logits)
           })
 
+    print(params)
+
     # Explicitly set the shape of the logits for XLA (TPU). This is needed
     # because the logits are passed back to the host VM CPU for metric
     # evaluation, and the shape of [?, ?, vocab_size] is too vague. However

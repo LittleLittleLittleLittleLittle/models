@@ -106,7 +106,7 @@ def get_padding_bias(x):
   Bias tensor that is added to the pre-softmax multi-headed attention logits,
   which has shape [batch_size, num_heads, length, length]. The tensor is zero at
   non-padding locations, and -1e9 (negative infinity) at padding locations.
-
+d
   Args:
     x: int tensor with shape [batch_size, length]
 

@@ -84,7 +84,9 @@ class Transformer(object):
     with tf.variable_scope("Transformer", initializer=initializer):
       # Calculate attention bias for encoder self-attention and decoder
       # multi-headed attention layers.
+      inputs = tf.Print(inputs, ["inputs", tf.shape(inputs)])
       attention_bias = model_utils.get_padding_bias(inputs)
+      attention_bias = tf.Print(attention_bias, ["att_bias", tf.shape(attention_bias)], summarize=100)
 
       # Run the inputs through the encoder layer to map the symbol
       # representations to continuous representations.
@@ -112,17 +114,21 @@ class Transformer(object):
       # Prepare inputs to the layer stack by adding positional encodings and
       # applying dropout.
       embedded_inputs = self.embedding_softmax_layer(inputs)
+      embedded_inputs = tf.Print(embedded_inputs, ["embedded_inputs", tf.shape(embedded_inputs)])
       inputs_padding = model_utils.get_padding(inputs)
 
       with tf.name_scope("add_pos_encoding"):
         length = tf.shape(embedded_inputs)[1]
         pos_encoding = model_utils.get_position_encoding(
             length, self.params["hidden_size"])
+        pos_encoding = tf.Print(pos_encoding, ["pos_encoding", tf.shape(pos_encoding)])
         encoder_inputs = embedded_inputs + pos_encoding
+        encoder_inputs = tf.Print(encoder_inputs, ["encoder_inputs", tf.shape(embedded_inputs)])
 
       if self.train:
         encoder_inputs = tf.nn.dropout(
             encoder_inputs, 1 - self.params["layer_postprocess_dropout"])
+      # encoder_inputs = tf.Print(encoder_inputs, [tf.shape(embedded_inputs)])
 
       return self.encoder_stack(encoder_inputs, attention_bias, inputs_padding)
 
@@ -253,14 +259,17 @@ class LayerNormalization(tf.layers.Layer):
   def build(self, _):
     self.scale = tf.get_variable("layer_norm_scale", [self.hidden_size],
                                  initializer=tf.ones_initializer())
+    self.scale = tf.Print(self.scale, ["scale", tf.shape(self.scale)])
     self.bias = tf.get_variable("layer_norm_bias", [self.hidden_size],
                                 initializer=tf.zeros_initializer())
+    self.bias = tf.Print(self.bias, ["self.bias", tf.shape(self.bias)])
     self.built = True
 
   def call(self, x, epsilon=1e-6):
     mean = tf.reduce_mean(x, axis=[-1], keepdims=True)
     variance = tf.reduce_mean(tf.square(x - mean), axis=[-1], keepdims=True)
     norm_x = (x - mean) * tf.rsqrt(variance + epsilon)
+    norm_x = tf.Print(norm_x, [9, tf.shape(norm_x)])
     return norm_x * self.scale + self.bias
 
 
@@ -278,13 +287,16 @@ class PrePostProcessingWrapper(object):
   def __call__(self, x, *args, **kwargs):
     # Preprocessing: apply layer normalization
     y = self.layer_norm(x)
+    y = tf.Print(y, ["layer_norm", tf.shape(y)])
 
     # Get layer output
     y = self.layer(y, *args, **kwargs)
+    y = tf.Print(y, ["layer", tf.shape(y)])
 
     # Postprocessing: apply dropout and residual connection
     if self.train:
       y = tf.nn.dropout(y, 1 - self.postprocess_dropout)
+
     return x + y
 
 
