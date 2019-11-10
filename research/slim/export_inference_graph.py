@@ -110,9 +110,6 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_bool('write_text_graphdef', False,
                          'Whether to write a text version of graphdef.')
 
-tf.app.flags.DEFINE_bool('use_grayscale', False,
-                         'Whether to convert input images to grayscale.')
-
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -131,14 +128,11 @@ def main(_):
         num_classes=(dataset.num_classes - FLAGS.labels_offset),
         is_training=FLAGS.is_training)
     image_size = FLAGS.image_size or network_fn.default_image_size
-    num_channels = 1 if FLAGS.use_grayscale else 3
     if FLAGS.is_video_model:
-      input_shape = [
-          FLAGS.batch_size, FLAGS.num_frames, image_size, image_size,
-          num_channels
-      ]
+      input_shape = [FLAGS.batch_size, FLAGS.num_frames,
+                     image_size, image_size, 3]
     else:
-      input_shape = [FLAGS.batch_size, image_size, image_size, num_channels]
+      input_shape = [FLAGS.batch_size, image_size, image_size, 3]
     placeholder = tf.placeholder(name='input', dtype=tf.float32,
                                  shape=input_shape)
     network_fn(placeholder)

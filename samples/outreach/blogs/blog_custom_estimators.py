@@ -22,14 +22,12 @@ import sys
 
 import six.moves.urllib.request as request
 
-from distutils.version import StrictVersion
-
 tf.logging.set_verbosity(tf.logging.INFO)
 
 # Check that we have correct TensorFlow version installed
 tf_version = tf.__version__
 tf.logging.info("TensorFlow version: {}".format(tf_version))
-assert StrictVersion("1.4") <= StrictVersion(tf_version), "TensorFlow r1.4 or later is needed"
+assert "1.4" <= tf_version, "TensorFlow r1.4 or later is needed"
 
 # Windows users: You only need to change PATH, rest is platform independent
 PATH = "/tmp/tf_custom_estimators"

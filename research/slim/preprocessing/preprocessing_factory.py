@@ -28,14 +28,13 @@ from preprocessing import vgg_preprocessing
 slim = tf.contrib.slim
 
 
-def get_preprocessing(name, is_training=False, use_grayscale=False):
+def get_preprocessing(name, is_training=False):
   """Returns preprocessing_fn(image, height, width, **kwargs).
 
   Args:
     name: The name of the preprocessing function.
     is_training: `True` if the model is being used for training and `False`
       otherwise.
-    use_grayscale: Whether to convert the image from RGB to grayscale.
 
   Returns:
     preprocessing_fn: A function that preprocessing a single image (pre-batch).
@@ -81,11 +80,6 @@ def get_preprocessing(name, is_training=False, use_grayscale=False):
 
   def preprocessing_fn(image, output_height, output_width, **kwargs):
     return preprocessing_fn_map[name].preprocess_image(
-        image,
-        output_height,
-        output_width,
-        is_training=is_training,
-        use_grayscale=use_grayscale,
-        **kwargs)
+        image, output_height, output_width, is_training=is_training, **kwargs)
 
   return preprocessing_fn

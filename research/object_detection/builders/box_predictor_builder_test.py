@@ -355,7 +355,6 @@ class WeightSharedConvolutionalBoxPredictorBuilderTest(tf.test.TestCase):
 
 
 
-
 class MaskRCNNBoxPredictorBuilderTest(tf.test.TestCase):
 
   def test_box_predictor_builder_calls_fc_argscope_fn(self):

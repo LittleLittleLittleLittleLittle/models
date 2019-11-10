@@ -24,8 +24,6 @@ import random
 import string
 import tensorflow as tf
 
-from official.utils.misc import tpu_lib
-
 
 def _collective_communication(all_reduce_alg):
   """Return a CollectiveCommunication based on all_reduce_alg.
@@ -85,18 +83,16 @@ def get_distribution_strategy(distribution_strategy="default",
                               num_gpus=0,
                               num_workers=1,
                               all_reduce_alg=None,
-                              num_packs=1,
-                              tpu_address=None):
+                              num_packs=1):
   """Return a DistributionStrategy for running the model.
 
   Args:
     distribution_strategy: a string specifying which distribution strategy to
       use. Accepted values are 'off', 'default', 'one_device', 'mirrored',
-      'parameter_server', 'multi_worker_mirrored', and 'tpu' -- case insensitive.
-      'off' means not to use Distribution Strategy; 'default' means to choose from
+      'parameter_server', 'multi_worker_mirrored', case insensitive. 'off' means
+      not to use Distribution Strategy; 'default' means to choose from
       `MirroredStrategy`, `MultiWorkerMirroredStrategy`, or `OneDeviceStrategy`
-      according to the number of GPUs and number of workers. 'tpu' means to use
-      TPUStrategy using `tpu_address`.
+      according to the number of GPUs and number of workers.
     num_gpus: Number of GPUs to run this model.
     num_workers: Number of workers to run this model.
     all_reduce_alg: Optional. Specifies which algorithm to use when performing
@@ -106,14 +102,12 @@ def get_distribution_strategy(distribution_strategy="default",
       device topology.
     num_packs: Optional.  Sets the `num_packs` in `tf.distribute.NcclAllReduce`
       or `tf.distribute.HierarchicalCopyAllReduce` for `MirroredStrategy`.
-    tpu_address: Optional. String that represents TPU to connect to. Must not
-      be None if `distribution_strategy` is set to `tpu`.
+
   Returns:
     tf.distribute.DistibutionStrategy object.
   Raises:
     ValueError: if `distribution_strategy` is 'off' or 'one_device' and
-      `num_gpus` is larger than 1; or `num_gpus` is negative or if
-      `distribution_strategy` is `tpu` but `tpu_address` is not specified.
+      `num_gpus` is larger than 1; or `num_gpus` is negative.
   """
   if num_gpus < 0:
     raise ValueError("`num_gpus` can not be negative.")
@@ -125,11 +119,6 @@ def get_distribution_strategy(distribution_strategy="default",
           "When {} GPUs and  {} workers are specified, distribution_strategy "
           "flag cannot be set to 'off'.".format(num_gpus, num_workers))
     return None
-
-  if distribution_strategy == "tpu":
-    # When tpu_address is an empty string, we communicate with local TPUs.
-    cluster_resolver = tpu_lib.tpu_initialize(tpu_address)
-    return tf.distribute.experimental.TPUStrategy(cluster_resolver)
 
   if distribution_strategy == "multi_worker_mirrored":
     return tf.distribute.experimental.MultiWorkerMirroredStrategy(
@@ -201,53 +190,24 @@ class SyntheticDataset(object):
   """A dataset that generates synthetic data on each device."""
 
   def __init__(self, dataset, split_by=1):
+    self._input_data = {}
     # dataset.take(1) doesn't have GPU kernel.
     with tf.device('device:CPU:0'):
       tensor = tf.data.experimental.get_single_element(dataset.take(1))
     flat_tensor = tf.nest.flatten(tensor)
     variable_data = []
-    initializers = []
+    self._initializers = []
     for t in flat_tensor:
       rebatched_t = tf.split(t, num_or_size_splits=split_by, axis=0)[0]
       assert rebatched_t.shape.is_fully_defined(), rebatched_t.shape
-      v = tf.compat.v1.get_local_variable(self._random_name(),
+      v = tf.compat.v1.get_local_variable(self.random_name(),
                                           initializer=rebatched_t)
       variable_data.append(v)
-      initializers.append(v.initializer)
-    input_data = tf.nest.pack_sequence_as(tensor, variable_data)
-    self._iterator = SyntheticIterator(input_data, initializers)
-
-  def _random_name(self, size=10, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
-
-  def __iter__(self):
-    return self._iterator
-
-  def make_one_shot_iterator(self):
-    return self._iterator
-
-  def make_initializable_iterator(self):
-    return self._iterator
-
-
-class SyntheticIterator(object):
-  """A dataset that generates synthetic data on each device."""
-
-  def __init__(self, input_data, initializers):
-    self._input_data = input_data
-    self._initializers = initializers
+      self._initializers.append(v.initializer)
+    self._input_data = tf.nest.pack_sequence_as(tensor, variable_data)
 
   def get_next(self):
     return self._input_data
-
-  def next(self):
-    return self.__next__()
-
-  def __next__(self):
-    try:
-      return self.get_next()
-    except tf.errors.OutOfRangeError:
-      raise StopIteration
 
   def initialize(self):
     if tf.executing_eagerly():
@@ -255,10 +215,13 @@ class SyntheticIterator(object):
     else:
       return self._initializers
 
+  def random_name(self, size=10, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
 
 def _monkey_patch_dataset_method(strategy):
   """Monkey-patch `strategy`'s `make_dataset_iterator` method."""
-  def make_dataset(self, dataset):
+  def make_dataset_iterator(self, dataset):
     tf.compat.v1.logging.info('Using pure synthetic data.')
     with self.scope():
       if self.extended._global_batch_size:  # pylint: disable=protected-access
@@ -266,34 +229,22 @@ def _monkey_patch_dataset_method(strategy):
       else:
         return SyntheticDataset(dataset)
 
-  def make_iterator(self, dataset):
-    dist_dataset = make_dataset(self, dataset)
-    return iter(dist_dataset)
-
-  strategy.orig_make_dataset_iterator = strategy.make_dataset_iterator
-  strategy.make_dataset_iterator = make_iterator
-  strategy.orig_distribute_dataset = strategy.experimental_distribute_dataset
-  strategy.experimental_distribute_dataset = make_dataset
+  strategy.org_make_dataset_iterator = strategy.make_dataset_iterator
+  strategy.make_dataset_iterator = make_dataset_iterator
 
 
 def _undo_monkey_patch_dataset_method(strategy):
-  if hasattr(strategy, 'orig_make_dataset_iterator'):
-    strategy.make_dataset_iterator = strategy.orig_make_dataset_iterator
-  if hasattr(strategy, 'orig_distribute_dataset'):
-    strategy.make_dataset_iterator = strategy.orig_distribute_dataset
+  if hasattr(strategy, 'org_make_dataset_iterator'):
+    strategy.make_dataset_iterator = strategy.org_make_dataset_iterator
 
 
 def set_up_synthetic_data():
   _monkey_patch_dataset_method(tf.distribute.OneDeviceStrategy)
   _monkey_patch_dataset_method(tf.distribute.MirroredStrategy)
-  _monkey_patch_dataset_method(
-      tf.distribute.experimental.MultiWorkerMirroredStrategy)
   # TODO(tobyboyd): Remove when contrib.distribute is all in core.
   if hasattr(tf, 'contrib'):
     _monkey_patch_dataset_method(tf.contrib.distribute.MirroredStrategy)
     _monkey_patch_dataset_method(tf.contrib.distribute.OneDeviceStrategy)
-    _monkey_patch_dataset_method(
-        tf.contrib.distribute.CollectiveAllReduceStrategy)
   else:
     print('Contrib missing: Skip monkey patch tf.contrib.distribute.*')
 
@@ -301,14 +252,10 @@ def set_up_synthetic_data():
 def undo_set_up_synthetic_data():
   _undo_monkey_patch_dataset_method(tf.distribute.OneDeviceStrategy)
   _undo_monkey_patch_dataset_method(tf.distribute.MirroredStrategy)
-  _undo_monkey_patch_dataset_method(
-      tf.distribute.experimental.MultiWorkerMirroredStrategy)
   # TODO(tobyboyd): Remove when contrib.distribute is all in core.
   if hasattr(tf, 'contrib'):
     _undo_monkey_patch_dataset_method(tf.contrib.distribute.MirroredStrategy)
     _undo_monkey_patch_dataset_method(tf.contrib.distribute.OneDeviceStrategy)
-    _undo_monkey_patch_dataset_method(
-        tf.contrib.distribute.CollectiveAllReduceStrategy)
   else:
     print('Contrib missing: Skip remove monkey patch tf.contrib.distribute.*')
 

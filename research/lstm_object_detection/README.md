@@ -32,8 +32,3 @@ https://scholar.googleusercontent.com/scholar.bib?q=info:rLqvkztmWYgJ:scholar.go
 * yinxiao@google.com
 * menglong@google.com
 * yongzhe@google.com
-
-
-## Table of Contents
-
-  * <a href='g3doc/exporting_models.md'>Exporting a trained model</a>

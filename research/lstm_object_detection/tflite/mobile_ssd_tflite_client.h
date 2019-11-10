@@ -25,9 +25,6 @@ limitations under the License.
 #include "tensorflow/lite/model.h"
 #include "mobile_ssd_client.h"
 #include "protos/anchor_generation_options.pb.h"
-#ifdef ENABLE_EDGETPU
-#include "libedgetpu/edgetpu.h"
-#endif  // ENABLE_EDGETPU
 
 namespace lstm_object_detection {
 namespace tflite {
@@ -43,7 +40,7 @@ class MobileSSDTfLiteClient : public MobileSSDClient {
   // By default CreateOpResolver will create
   // tflite::ops::builtin::BuiltinOpResolver. Overriding the function allows the
   // client to use custom op resolvers.
-  virtual std::unique_ptr<::tflite::MutableOpResolver> CreateOpResolver();
+  virtual std::unique_ptr<::tflite::OpResolver> CreateOpResolver();
 
   bool InitializeClient(const protos::ClientOptions& options) override;
 
@@ -73,12 +70,8 @@ class MobileSSDTfLiteClient : public MobileSSDClient {
   virtual bool IsQuantizedModel() const;
 
   std::unique_ptr<::tflite::FlatBufferModel> model_;
-  std::unique_ptr<::tflite::MutableOpResolver> resolver_;
+  std::unique_ptr<::tflite::OpResolver> resolver_;
   std::unique_ptr<::tflite::Interpreter> interpreter_;
-
-#ifdef ENABLE_EDGETPU
-  std::unique_ptr<edgetpu::EdgeTpuContext> edge_tpu_context_;
-#endif
 
  private:
   // MobileSSDTfLiteClient is neither copyable nor movable.

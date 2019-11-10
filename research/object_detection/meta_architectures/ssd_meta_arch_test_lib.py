@@ -129,8 +129,7 @@ class SSDMetaArchTestBase(test_case.TestCase):
       predict_mask=False,
       use_static_shapes=False,
       nms_max_size_per_class=5,
-      calibration_mapping_value=None,
-      return_raw_detections_during_predict=False):
+      calibration_mapping_value=None):
     is_training = False
     num_classes = 1
     mock_anchor_generator = MockAnchorGenerator2x2()
@@ -239,8 +238,6 @@ class SSDMetaArchTestBase(test_case.TestCase):
         add_background_class=add_background_class,
         random_example_sampler=random_example_sampler,
         expected_loss_weights_fn=expected_loss_weights_fn,
-        return_raw_detections_during_predict=(
-            return_raw_detections_during_predict),
         **kwargs)
     return model, num_classes, mock_anchor_generator.num_anchors(), code_size
 

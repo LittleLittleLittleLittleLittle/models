@@ -38,8 +38,8 @@ import sys
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
+from official.datasets import movielens  # pylint: disable=g-bad-import-order
 from official.recommendation import constants as rconst
-from official.recommendation import movielens
 from official.recommendation import ncf_common
 from official.recommendation import stat_utils
 from official.utils.logs import mlperf_helper
@@ -109,6 +109,7 @@ def neumf_model_fn(features, labels, mode, params):
     mlperf_helper.ncf_print(key=mlperf_helper.TAGS.OPT_HP_ADAM_EPSILON,
                             value=params["epsilon"])
 
+
     optimizer = tf.compat.v1.train.AdamOptimizer(
         learning_rate=params["learning_rate"],
         beta1=params["beta1"],
@@ -150,7 +151,7 @@ def _strip_first_and_last_dimension(x, batch_size):
   return tf.reshape(x[0, :], (batch_size,))
 
 
-def construct_model(user_input, item_input, params):
+def construct_model(user_input, item_input, params, need_strip=False):
   # type: (tf.Tensor, tf.Tensor, dict) -> tf.keras.Model
   """Initialize NeuMF model.
 
@@ -183,33 +184,34 @@ def construct_model(user_input, item_input, params):
   # Initializer for embedding layers
   embedding_initializer = "glorot_uniform"
 
-  def mf_slice_fn(x):
-    x = tf.squeeze(x, [1])
-    return x[:, :mf_dim]
+  if need_strip:
+    batch_size = params["batch_size"]
 
-  def mlp_slice_fn(x):
-    x = tf.squeeze(x, [1])
-    return x[:, mf_dim:]
+    user_input_reshaped = tf.keras.layers.Lambda(
+        lambda x: _strip_first_and_last_dimension(
+            x, batch_size))(user_input)
+
+    item_input_reshaped = tf.keras.layers.Lambda(
+        lambda x: _strip_first_and_last_dimension(
+            x, batch_size))(item_input)
 
   # It turns out to be significantly more effecient to store the MF and MLP
   # embedding portions in the same table, and then slice as needed.
+  mf_slice_fn = lambda x: x[:, :mf_dim]
+  mlp_slice_fn = lambda x: x[:, mf_dim:]
   embedding_user = tf.keras.layers.Embedding(
-      num_users,
-      mf_dim + model_layers[0] // 2,
+      num_users, mf_dim + model_layers[0] // 2,
       embeddings_initializer=embedding_initializer,
       embeddings_regularizer=tf.keras.regularizers.l2(mf_regularization),
-      input_length=1,
-      name="embedding_user")(
-          user_input)
+      input_length=1, name="embedding_user")(
+          user_input_reshaped if need_strip else user_input)
 
   embedding_item = tf.keras.layers.Embedding(
-      num_items,
-      mf_dim + model_layers[0] // 2,
+      num_items, mf_dim + model_layers[0] // 2,
       embeddings_initializer=embedding_initializer,
       embeddings_regularizer=tf.keras.regularizers.l2(mf_regularization),
-      input_length=1,
-      name="embedding_item")(
-          item_input)
+      input_length=1, name="embedding_item")(
+          item_input_reshaped if need_strip else item_input)
 
   # GMF part
   mf_user_latent = tf.keras.layers.Lambda(
@@ -427,7 +429,7 @@ def compute_top_k_and_ndcg(logits,              # type: tf.Tensor
   logits_by_user = tf.reshape(logits, (-1, rconst.NUM_EVAL_NEGATIVES + 1))
   duplicate_mask_by_user = tf.cast(
       tf.reshape(duplicate_mask, (-1, rconst.NUM_EVAL_NEGATIVES + 1)),
-      logits_by_user.dtype)
+      tf.float32)
 
   if match_mlperf:
     # Set duplicate logits to the min value for that dtype. The MLPerf

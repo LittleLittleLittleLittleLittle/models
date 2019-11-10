@@ -290,11 +290,10 @@ def multilevel_roi_align(features, boxes, box_levels, output_size,
 
   Args:
     features: A list of 4D float tensors of shape [batch_size, max_height,
-      max_width, channels] containing features. Note that each feature map must
-      have the same number of channels.
+      max_width, channels] containing features.
     boxes: A 3D float tensor of shape [batch_size, num_boxes, 4] containing
       boxes of the form [ymin, xmin, ymax, xmax] in normalized coordinates.
-    box_levels: A 3D int32 tensor of shape [batch_size, num_boxes]
+    box_levels: A 3D int32 tensor of shape [batch_size, num_boxes, 1]
       representing the feature level index for each box.
     output_size: An list of two integers [size_y, size_x] indicating the output
       feature size for each box.

@@ -27,9 +27,9 @@ import numpy as np
 import scipy.stats
 import tensorflow as tf
 
+from official.datasets import movielens
 from official.recommendation import constants as rconst
 from official.recommendation import data_preprocessing
-from official.recommendation import movielens
 from official.recommendation import popen_helper
 from official.utils.misc import keras_utils
 
@@ -109,7 +109,6 @@ class BaseTest(tf.test.TestCase):
         "match_mlperf": True,
         "use_tpu": False,
         "use_xla_for_gpu": False,
-        "stream_files": False,
     }
 
   def test_preprocessing(self):
@@ -127,7 +126,7 @@ class BaseTest(tf.test.TestCase):
     # type: (tf.data.Dataset, tf.Graph) -> list
     with self.session(graph=g) as sess:
       with g.as_default():
-        batch = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
+        batch = dataset.make_one_shot_iterator().get_next()
       output = []
       while True:
         try:
@@ -168,11 +167,8 @@ class BaseTest(tf.test.TestCase):
     md5 = hashlib.md5()
     for features, labels in first_epoch:
       data_list = [
-          features[movielens.USER_COLUMN].flatten(),
-          features[movielens.ITEM_COLUMN].flatten(),
-          features[rconst.VALID_POINT_MASK].flatten(),
-          labels.flatten()
-      ]
+          features[movielens.USER_COLUMN], features[movielens.ITEM_COLUMN],
+          features[rconst.VALID_POINT_MASK], labels]
       for i in data_list:
         md5.update(i.tobytes())
 
@@ -219,10 +215,8 @@ class BaseTest(tf.test.TestCase):
     md5 = hashlib.md5()
     for features in eval_data:
       data_list = [
-          features[movielens.USER_COLUMN].flatten(),
-          features[movielens.ITEM_COLUMN].flatten(),
-          features[rconst.DUPLICATE_MASK].flatten()
-      ]
+          features[movielens.USER_COLUMN], features[movielens.ITEM_COLUMN],
+          features[rconst.DUPLICATE_MASK]]
       for i in data_list:
         md5.update(i.tobytes())
 
@@ -281,11 +275,8 @@ class BaseTest(tf.test.TestCase):
     md5 = hashlib.md5()
     for features, labels in results:
       data_list = [
-          features[movielens.USER_COLUMN].flatten(),
-          features[movielens.ITEM_COLUMN].flatten(),
-          features[rconst.VALID_POINT_MASK].flatten(),
-          labels.flatten()
-      ]
+          features[movielens.USER_COLUMN], features[movielens.ITEM_COLUMN],
+          features[rconst.VALID_POINT_MASK], labels]
       for i in data_list:
         md5.update(i.tobytes())
 
